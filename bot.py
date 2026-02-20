@@ -29,19 +29,30 @@ def main():
 
         if CHROME_DEBUGGING_PORT:
             # Connect to your already-running Chrome (with your profile & cookies)
-            try:
-                browser = p.chromium.connect_over_cdp(
-                    f"http://127.0.0.1:{CHROME_DEBUGGING_PORT}",
-                    timeout=5000,
-                )
-            except Exception as e:
+            last_error = None
+            for host in ("127.0.0.1", "localhost"):
+                try:
+                    browser = p.chromium.connect_over_cdp(
+                        f"http://{host}:{CHROME_DEBUGGING_PORT}",
+                        timeout=10000,
+                    )
+                    last_error = None
+                    break
+                except Exception as e:
+                    last_error = e
+                    continue
+            if last_error is not None:
                 print(
-                    "Could not connect to Chrome. Start Chrome with remote debugging first, e.g.:\n"
-                    "  macOS:   /Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port=9222\n"
-                    "  Windows: \"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --remote-debugging-port=9222\n",
+                    "Could not connect to Chrome.\n"
+                    "  Error: {}\n\n"
+                    "1. Quit all Chrome windows, then start Chrome with remote debugging:\n"
+                    '  macOS:   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --remote-debugging-port=9222\n'
+                    '  Windows: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" --remote-debugging-port=9222\n\n'
+                    "2. Check that the port is open: open http://localhost:9222 in another browser; you should see a JSON response.\n"
+                    "3. Ensure CHROME_DEBUGGING_PORT in .env matches the port you used (e.g. 9222).".format(last_error),
                     file=sys.stderr,
                 )
-                raise SystemExit(1) from e
+                raise SystemExit(1) from last_error
             we_own_browser = False
             context = browser.contexts[0] if browser.contexts else browser.new_context()
             page = context.new_page()
