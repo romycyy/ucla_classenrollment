@@ -1,5 +1,8 @@
 import os
+from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+
+load_dotenv()
 
 LOGIN_URL = os.getenv("LOGIN_URL", "https://example.com/login")
 USERNAME = os.getenv("BOT_USERNAME")
