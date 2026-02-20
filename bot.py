@@ -13,10 +13,7 @@ USERNAME = os.getenv("BOT_USERNAME")
 PASSWORD = os.getenv("BOT_PASSWORD")
 CHROME_DEBUGGING_PORT = os.getenv("CHROME_DEBUGGING_PORT")
 # After login: open Class Planner and click Enroll (Enrollment Actions)
-CLASS_PLANNER_ENROLL_URL = (
-    "https://be.my.ucla.edu/ClassPlanner/ClassPlan.aspx"
-    "#:~:text=Enrollment%20Actions-,Enroll,-Class%205%3A%20Management"
-)
+CLASS_PLANNER_ENROLL_URL = "https://be.my.ucla.edu/ClassPlanner/ClassPlan.aspx"
 
 # Chrome requires a *non-default* --user-data-dir when using remote debugging.
 # Use a separate profile so debugging works; log in once in that window, cookies persist.
@@ -25,7 +22,7 @@ CHROME_DEBUG_PROFILE = os.path.expanduser("~/.chrome-remote-debug")
 # Paths to Chrome for auto-launch (only used when connecting fails)
 _CHROME_PATHS = [
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",  # macOS
-    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",   # Windows
+    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",  # Windows
 ]
 
 
@@ -36,7 +33,11 @@ def _launch_chrome_for_debugging(port: str) -> bool:
         if os.path.exists(exe):
             try:
                 subprocess.Popen(
-                    [exe, f"--user-data-dir={profile}", f"--remote-debugging-port={port}"],
+                    [
+                        exe,
+                        f"--user-data-dir={profile}",
+                        f"--remote-debugging-port={port}",
+                    ],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     start_new_session=True,
@@ -79,7 +80,12 @@ def main():
             try:
                 browser = p.chromium.connect_over_cdp(cdp_url, timeout=5000)
             except Exception:
-                print("Chrome not detected on port", port, "- launching Chrome...", file=sys.stderr)
+                print(
+                    "Chrome not detected on port",
+                    port,
+                    "- launching Chrome...",
+                    file=sys.stderr,
+                )
                 if _launch_chrome_for_debugging(port) and _wait_for_debug_port(port):
                     browser = p.chromium.connect_over_cdp(cdp_url, timeout=10000)
                 else:
@@ -108,11 +114,11 @@ def main():
             signin_clicked = False
 
             try:
-                page.get_by_role("link", name="Sign In").first.click(timeout=1000)
+                page.get_by_role("link", name="Sign In").first.click(timeout=3000)
                 signin_clicked = True
             except Exception:
                 try:
-                    page.get_by_role("button", name="Sign in").first.click(timeout=1000)
+                    page.get_by_role("button", name="Sign in").first.click(timeout=3000)
                     signin_clicked = True
                 except Exception:
                     pass
@@ -127,71 +133,27 @@ def main():
             )
 
             # --- Fill username: try common labels/placeholders, then fallback to first text/email input ---
-            username_filled = False
-            for label in ("Email", "Username", "Email address"):
-                try:
-                    page.get_by_label(label).first.fill(USERNAME, timeout=1000)
-                    username_filled = True
-                    print(f"Filled username: {USERNAME}")
-                    break
-                except Exception:
-                    continue
-            if not username_filled:
-                try:
-                    page.locator("input[type='email']").first.fill(
-                        USERNAME, timeout=1000
-                    )
-                    username_filled = True
-                except Exception:
-                    page.locator("input[type='text']").first.fill(
-                        USERNAME, timeout=1000
-                    )
-                    username_filled = True
-            if not username_filled:
-                raise RuntimeError(
-                    "Could not find username/email field. Check the page or add the right selector."
-                )
+
+            page.locator("input[type='text']").first.fill(USERNAME, timeout=3000)
 
             # --- Fill password: label or type=password ---
             try:
                 page.get_by_label("Password").first.fill(PASSWORD, timeout=3000)
             except Exception:
                 page.locator("input[type='password']").first.fill(
-                    PASSWORD, timeout=1000
+                    PASSWORD, timeout=3000
                 )
 
             # --- Click login ---
-            for btn_name in ("Log in", "Login", "登录", "Sign in"):
-                try:
-                    page.get_by_role("button", name=btn_name).first.click(timeout=1000)
-                    break
-                except Exception:
-                    continue
-            else:
-                page.locator("button[type='submit'], input[type='submit']").first.click(
-                    timeout=1000
-                )
+            page.get_by_role("button", name="Sign in").first.click(timeout=3000)
 
-            # Wait for post-login to settle, then open Class Planner and click Enroll
-            page.wait_for_load_state("networkidle", timeout=15000)
-            page.goto(CLASS_PLANNER_ENROLL_URL, wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_load_state("networkidle", timeout=15000)
-            # Click the Enroll link/button (URL fragment scrolls to it)
-            enroll_clicked = False
-            for loc in [
-                page.get_by_role("link", name="Enroll"),
-                page.get_by_role("button", name="Enroll"),
-                page.get_by_text("Enroll", exact=True),
-            ]:
-                try:
-                    loc.first.click(timeout=5000)
-                    enroll_clicked = True
-                    break
-                except Exception:
-                    continue
-            if not enroll_clicked:
-                raise RuntimeError('Could not find "Enroll" on Class Planner page.')
-            print("✅ Logged in and clicked Enroll on Class Planner")
+            # wait till url changed to https://be.my.ucla.edu/studylist.aspx
+            page.wait_for_url("https://be.my.ucla.edu/studylist.aspx", timeout=30000)
+            # goto CLASS_PLANNER_ENROLL_URL
+            page.goto(
+                CLASS_PLANNER_ENROLL_URL, wait_until="domcontentloaded", timeout=30000
+            )
+            print("✅ Logged in and redirected to studylist.aspx", flush=True)
 
         except PWTimeout:
             page.screenshot(path="error.png", full_page=True)
