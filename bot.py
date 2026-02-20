@@ -12,6 +12,11 @@ LOGIN_URL = os.getenv("LOGIN_URL", "https://example.com/login")
 USERNAME = os.getenv("BOT_USERNAME")
 PASSWORD = os.getenv("BOT_PASSWORD")
 CHROME_DEBUGGING_PORT = os.getenv("CHROME_DEBUGGING_PORT")
+# After login: open Class Planner and click Enroll (Enrollment Actions)
+CLASS_PLANNER_ENROLL_URL = (
+    "https://be.my.ucla.edu/ClassPlanner/ClassPlan.aspx"
+    "#:~:text=Enrollment%20Actions-,Enroll,-Class%205%3A%20Management"
+)
 
 # Chrome requires a *non-default* --user-data-dir when using remote debugging.
 # Use a separate profile so debugging works; log in once in that window, cookies persist.
@@ -123,10 +128,11 @@ def main():
 
             # --- Fill username: try common labels/placeholders, then fallback to first text/email input ---
             username_filled = False
-            for label in ("Email", "Username", "邮箱", "手机号", "Email address"):
+            for label in ("Email", "Username", "Email address"):
                 try:
                     page.get_by_label(label).first.fill(USERNAME, timeout=1000)
                     username_filled = True
+                    print(f"Filled username: {USERNAME}")
                     break
                 except Exception:
                     continue
@@ -166,7 +172,26 @@ def main():
                     timeout=1000
                 )
 
-            print("✅ Logged in and clicked Profile")
+            # Wait for post-login to settle, then open Class Planner and click Enroll
+            page.wait_for_load_state("networkidle", timeout=15000)
+            page.goto(CLASS_PLANNER_ENROLL_URL, wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_load_state("networkidle", timeout=15000)
+            # Click the Enroll link/button (URL fragment scrolls to it)
+            enroll_clicked = False
+            for loc in [
+                page.get_by_role("link", name="Enroll"),
+                page.get_by_role("button", name="Enroll"),
+                page.get_by_text("Enroll", exact=True),
+            ]:
+                try:
+                    loc.first.click(timeout=5000)
+                    enroll_clicked = True
+                    break
+                except Exception:
+                    continue
+            if not enroll_clicked:
+                raise RuntimeError('Could not find "Enroll" on Class Planner page.')
+            print("✅ Logged in and clicked Enroll on Class Planner")
 
         except PWTimeout:
             page.screenshot(path="error.png", full_page=True)
